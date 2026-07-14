@@ -150,6 +150,7 @@ exports.handler = async (event) => {
       adset_id:     utms.adset_id     || null,
       ad_id:        utms.ad_id        || null,
       placement:    utms.placement    || null,
+      xgo:          utms.xgo          || null,
     },
   };
 
