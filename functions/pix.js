@@ -1,20 +1,22 @@
 const { getSupabase } = require("./lib/supabase");
 
-const MASTERFY_BASE  = "https://api.masterfypagamentos.com/v1";
-const MASTERFY_KEY   = process.env.MASTERFY_API_KEY;
-const UTMIFY_TOKEN   = "lzASZob4ldSJJc3jT1LILy9alPxWJgpnPhCh";
+const VOID_BASE    = "https://dash.voidpay.com.br/api/v1";
+const VOID_PUB     = process.env.VOID_PUBLIC_KEY;
+const VOID_SEC     = process.env.VOID_SECRET_KEY;
+const UTMIFY_TOKEN = "lzASZob4ldSJJc3jT1LILy9alPxWJgpnPhCh";
 
-async function sendUtmify(transactionId, status, customerName, customerEmail, customerPhone, customerCpf, amountCents, createdAt, utms) {
+async function sendUtmifyWaiting(transactionId, customerName, customerEmail, customerPhone, customerCpf, amountCents, utms) {
   try {
     const gatewayFeeCents = Math.round(amountCents * 0.015);
     const netCents        = amountCents - gatewayFeeCents;
+    const now = new Date().toISOString().replace("T"," ").slice(0,19);
     const payload = {
       orderId:       transactionId,
-      platform:      "Masterfy",
+      platform:      "VoidPay",
       paymentMethod: "pix",
-      status,
-      createdAt:     createdAt || new Date().toISOString().replace("T"," ").slice(0,19),
-      approvedDate:  status === "paid" ? new Date().toISOString().replace("T"," ").slice(0,19) : null,
+      status:        "waiting_payment",
+      createdAt:     now,
+      approvedDate:  null,
       refundedAt:    null,
       customer: { name: customerName||null, email: customerEmail||null, phone: customerPhone||null, document: customerCpf||null, country:"BR", ip:"177.0.0.1" },
       products: [{ id:"livro-falante-001", name:"Livro Falante", planId:null, planName:null, quantity:1, priceInCents:amountCents }],
@@ -25,7 +27,7 @@ async function sendUtmify(transactionId, status, customerName, customerEmail, cu
     const resp = await fetch("https://api.utmify.com.br/api-credentials/orders", {
       method:"POST", headers:{"Content-Type":"application/json","x-api-token":UTMIFY_TOKEN}, body:JSON.stringify(payload),
     });
-    console.log(`[UTMify] ${status} status ${resp.status}: ${await resp.text()}`);
+    console.log(`[UTMify waiting_payment] ${resp.status}: ${await resp.text()}`);
   } catch (err) { console.error("[UTMify] Erro:", err); }
 }
 
@@ -63,6 +65,16 @@ function gerarCpfValido() {
   return d.join('');
 }
 
+function formatCpf(cpf) {
+  return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+}
+
+function getDueDate() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().split("T")[0];
+}
+
 async function postWithRetry(url, payload, headers) {
   const delays = [1000, 2000, 4000];
   let lastErr;
@@ -70,12 +82,7 @@ async function postWithRetry(url, payload, headers) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-      const resp = await fetch(url, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
+      const resp = await fetch(url, { method:"POST", headers, body:JSON.stringify(payload), signal:controller.signal });
       clearTimeout(timeout);
       if (resp.status >= 400 && resp.status < 500) return resp;
       if (resp.ok) return resp;
@@ -91,62 +98,70 @@ async function postWithRetry(url, payload, headers) {
 
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") {
-    return {
-      statusCode: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-      },
-      body: "",
-    };
+    return { statusCode:204, headers:{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"Content-Type, Authorization","Access-Control-Allow-Methods":"GET,POST,OPTIONS"}, body:"" };
   }
 
   let body = {};
-  try {
-    body = event.body ? JSON.parse(event.body) : {};
-  } catch { body = {}; }
+  try { body = event.body ? JSON.parse(event.body) : {}; } catch { body = {}; }
 
   const randDigits = (len) => Array.from({ length: len }, () => Math.floor(Math.random() * 10)).join("");
   const randId = randDigits(8);
 
-  const rawAmount   = body.amount ?? body.valor ?? body.total ?? 8170;
+  const rawAmount   = body.amount ?? body.valor ?? body.total ?? 6320;
   const amountCents = normalizeAmountCents(rawAmount);
 
   const customerName  = (body.nome || body.name || body.customer_name || `Cliente ${randId}`).toString().trim();
   const customerEmail = (body.email || body.customer_email || `cliente${randId}@gmail.com`).toString().trim();
-  const customerPhone = (body.phone || body.customer_phone || "11999999999").toString().replace(/\D/g, "");
+  const customerPhone = (body.phone || body.customer_phone || "(11) 99999-9999").toString();
   const cpfRaw        = (body.cpf || body.document || body.customer_cpf || "").toString().replace(/\D/g, "");
   const customerCpf   = cpfRaw.length === 11 ? cpfRaw : gerarCpfValido();
+  const utms          = body.utm || {};
+
+  const amount = amountCents / 100;
 
   const payload = {
-    amount:      amountCents,
-    currency:    "BRL",
-    method:      "PIX",
-    description: "Livro Falante",
-    externalRef: `order_${randId}_${Date.now()}`,
-    payer: {
-      name:  customerName,
-      taxId: customerCpf,
-      email: customerEmail,
-      phone: customerPhone,
+    identifier: `order_${randId}_${Date.now()}`,
+    amount,
+    client: {
+      name:     customerName,
+      email:    customerEmail,
+      phone:    customerPhone,
+      document: formatCpf(customerCpf),
     },
-    items: [{
-      quantity: 1,
+    products: [{
+      id:       "livro-falante-001",
       name:     "Livro Falante",
-      price:    amountCents,
-      type:     "DIGITAL",
+      quantity: 1,
+      price:    amount,
     }],
+    dueDate:     getDueDate(),
+    callbackUrl: "https://lighthearted-swan-2eba8b.netlify.app/api/webhook-void",
+    metadata: {
+      utm_source:   utms.utm_source   || utms.source   || null,
+      utm_medium:   utms.utm_medium   || utms.medium   || null,
+      utm_campaign: utms.utm_campaign || utms.campaign || utms.campaign_name || null,
+      utm_content:  utms.utm_content  || utms.content  || null,
+      utm_term:     utms.utm_term     || utms.term     || null,
+      fbclid:       utms.fbclid       || null,
+      ttclid:       utms.ttclid       || null,
+      gclid:        utms.gclid        || null,
+      campaign_id:  utms.campaign_id  || null,
+      campaign_name:utms.campaign_name|| null,
+      adset_id:     utms.adset_id     || null,
+      ad_id:        utms.ad_id        || null,
+      placement:    utms.placement    || null,
+    },
   };
 
   const headers = {
     "Content-Type":  "application/json",
-    "Authorization": `Bearer ${MASTERFY_KEY}`,
+    "x-public-key":  VOID_PUB,
+    "x-secret-key":  VOID_SEC,
   };
 
   let resp;
   try {
-    resp = await postWithRetry(`${MASTERFY_BASE}/payment`, payload, headers);
+    resp = await postWithRetry(`${VOID_BASE}/gateway/pix/receive`, payload, headers);
   } catch (err) {
     return jsonResponse(502, { success: false, error: "Falha ao conectar com gateway: " + String(err) });
   }
@@ -163,31 +178,31 @@ exports.handler = async (event) => {
     return jsonResponse(500, { success: false, error: "Resposta inválida da gateway", raw: text });
   }
 
-  // Masterfy retorna: id, status, data.copypaste
-  const transactionId = parsed.id || null;
-  const pixCode       = parsed.data?.copypaste || null;
+  // VoidPay retorna: transactionId, status, pix.code
+  const transactionId = parsed.transactionId || null;
+  const pixCode       = parsed.pix?.code || null;
 
   try {
     const supabase = getSupabase();
     await supabase.from("transactions").insert({
       transaction_id: transactionId,
-      amount:         amountCents / 100,
+      amount:         amount,
       customer_name:  customerName,
       customer_email: customerEmail,
       customer_cpf:   customerCpf,
       customer_phone: customerPhone,
       status:         "PENDING",
       brcode:         pixCode,
+      utm_source:     utms.utm_source   || null,
+      utm_campaign:   utms.utm_campaign || null,
+      utm_medium:     utms.utm_medium   || null,
+      utm_content:    utms.utm_content  || null,
+      utm_term:       utms.utm_term     || null,
     });
   } catch (_) {}
 
-  // Dispara para UTMify como waiting_payment (PIX gerado)
-  await sendUtmify(
-    transactionId, "waiting_payment",
-    customerName, customerEmail, customerPhone, customerCpf,
-    amountCents, new Date().toISOString().replace("T"," ").slice(0,19),
-    body.utm || {}
-  );
+  // Dispara UTMify waiting_payment
+  await sendUtmifyWaiting(transactionId, customerName, customerEmail, customerPhone, customerCpf, amountCents, utms);
 
   return jsonResponse(200, {
     success:        true,

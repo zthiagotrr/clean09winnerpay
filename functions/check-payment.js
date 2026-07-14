@@ -1,21 +1,23 @@
 const { getSupabase } = require("./lib/supabase");
 
-const MASTERFY_BASE = "https://api.masterfypagamentos.com/v1";
-const MASTERFY_KEY  = process.env.MASTERFY_API_KEY;
-const UTMIFY_TOKEN  = "lzASZob4ldSJJc3jT1LILy9alPxWJgpnPhCh";
+const VOID_BASE    = "https://dash.voidpay.com.br/api/v1";
+const VOID_PUB     = process.env.VOID_PUBLIC_KEY;
+const VOID_SEC     = process.env.VOID_SECRET_KEY;
+const UTMIFY_TOKEN = "lzASZob4ldSJJc3jT1LILy9alPxWJgpnPhCh";
 
-async function sendUtmifyOrder(txData, transactionId, paidAt) {
+async function sendUtmifyPaid(txData, transactionId, paidAt) {
   try {
     const amountCents     = Math.round((txData.amount || 43.10) * 100);
     const gatewayFeeCents = Math.round(amountCents * 0.015);
     const netCents        = amountCents - gatewayFeeCents;
+    const now = new Date().toISOString().replace("T"," ").slice(0,19);
     const payload = {
       orderId:       transactionId,
-      platform:      "Masterfy",
+      platform:      "VoidPay",
       paymentMethod: "pix",
       status:        "paid",
-      createdAt:     txData.created_at || new Date().toISOString().replace("T"," ").slice(0,19),
-      approvedDate:  paidAt || new Date().toISOString().replace("T"," ").slice(0,19),
+      createdAt:     txData.created_at || now,
+      approvedDate:  paidAt || now,
       refundedAt:    null,
       customer: {
         name:     txData.customer_name  || null,
@@ -52,13 +54,11 @@ async function sendUtmifyOrder(txData, transactionId, paidAt) {
     };
     const resp = await fetch("https://api.utmify.com.br/api-credentials/orders", {
       method:  "POST",
-      headers: { "Content-Type": "application/json", "x-api-token": UTMIFY_TOKEN },
+      headers: { "Content-Type":"application/json", "x-api-token":UTMIFY_TOKEN },
       body:    JSON.stringify(payload),
     });
-    console.log(`[UTMify paid] status ${resp.status}: ${await resp.text()}`);
-  } catch (err) {
-    console.error("[UTMify] Erro:", err);
-  }
+    console.log(`[UTMify paid] ${resp.status}: ${await resp.text()}`);
+  } catch (err) { console.error("[UTMify] Erro:", err); }
 }
 
 function jsonResponse(statusCode, body) {
@@ -76,46 +76,32 @@ function jsonResponse(statusCode, body) {
 
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") {
-    return {
-      statusCode: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-      },
-      body: "",
-    };
+    return { statusCode:204, headers:{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"Content-Type, Authorization","Access-Control-Allow-Methods":"GET,POST,OPTIONS"}, body:"" };
   }
 
   let transactionId = event.queryStringParameters?.id || event.queryStringParameters?.transactionId;
   if (event.httpMethod === "POST") {
-    try {
-      const b = event.body ? JSON.parse(event.body) : {};
-      transactionId = b?.transactionId || b?.id || transactionId;
-    } catch {}
+    try { const b = event.body ? JSON.parse(event.body) : {}; transactionId = b?.transactionId || b?.id || transactionId; } catch {}
   }
 
-  if (!transactionId) {
-    return jsonResponse(400, { success: false, error: "Informe o transactionId" });
-  }
+  if (!transactionId) return jsonResponse(400, { success: false, error: "Informe o transactionId" });
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
 
   let statusResp, text = "";
   try {
-    statusResp = await fetch(`${MASTERFY_BASE}/payment/${encodeURIComponent(transactionId)}`, {
+    // VoidPay: GET /gateway/transactions/{id}
+    statusResp = await fetch(`${VOID_BASE}/gateway/transactions/${encodeURIComponent(transactionId)}`, {
       method:  "GET",
-      headers: { "Authorization": `Bearer ${MASTERFY_KEY}`, "Content-Type": "application/json" },
+      headers: { "x-public-key": VOID_PUB, "x-secret-key": VOID_SEC, "Content-Type": "application/json" },
       signal:  controller.signal,
     });
     text = await statusResp.text();
   } catch (err) {
     clearTimeout(timeout);
     return jsonResponse(502, { success: false, error: "Falha ao consultar status: " + String(err) });
-  } finally {
-    clearTimeout(timeout);
-  }
+  } finally { clearTimeout(timeout); }
 
   let parsed = {};
   try { parsed = JSON.parse(text); } catch { parsed = {}; }
@@ -124,15 +110,14 @@ exports.handler = async (event) => {
     return jsonResponse(statusResp.status, { success: false, error: parsed?.message || text || "Erro ao consultar pagamento" });
   }
 
-  // Masterfy status: PENDING | PAID | EXPIRED | REFUNDED | CANCELLED
+  // VoidPay status: PENDING | OK | FAILED | REJECTED | CANCELED
   const rawStatus = (parsed.status || "PENDING").toUpperCase();
-  const paid      = rawStatus === "PAID";
+  const paid      = rawStatus === "OK";
   const status    = paid ? "paid" : rawStatus.toLowerCase();
-  const paidAt    = parsed.paidAt || null;
+  const paidAt    = parsed.paidAt || parsed.updatedAt || null;
 
   try {
     const supabase = getSupabase();
-
     if (paid) {
       const { data: txData } = await supabase
         .from("transactions")
@@ -147,9 +132,8 @@ exports.handler = async (event) => {
         .update({ status, paid_at: paidAt || new Date().toISOString() })
         .eq("transaction_id", transactionId);
 
-      // Só dispara UTMify se ainda não tinha sido marcado como pago
       if (!alreadyPaid && txData) {
-        await sendUtmifyOrder(txData, transactionId, paidAt);
+        await sendUtmifyPaid(txData, transactionId, paidAt);
       }
     } else {
       await supabase
