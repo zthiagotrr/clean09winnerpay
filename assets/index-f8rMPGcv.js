@@ -21379,7 +21379,7 @@ function RE() {
                     children: "Total:"
                   }), l.jsx("span", {
                     className: "whitespace-nowrap",
-                    children: "R$63,20"
+                    children: "R$61,70"
                   })]
                 })]
               })]
@@ -21452,7 +21452,7 @@ function DE() {
           console.log("PAGAMENTO CONFIRMADO!");
           const I = `fb_conversion_${M}`;
           return !localStorage.getItem(I) && typeof window.fbq < "u" && (window.fbq("track", "Purchase", {
-            value: (t == null ? void 0 : t.amount) || 63.20,
+            value: (t == null ? void 0 : t.amount) || 61.70,
             currency: "BRL",
             content_name: "Pagamento via PIX - CNH do Brasil",
             content_type: "product",
@@ -21490,7 +21490,7 @@ function DE() {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            amount: 63.20,
+            amount: 61.70,
             customer_name: _.nome,
             customer_email: _.email,
             customer_phone: _.phone,
@@ -21662,7 +21662,7 @@ function DE() {
                 children: "Valor:"
               }), l.jsx("span", {
                 className: "font-bold text-green-600",
-                children: "R$ 63,20"
+                children: "R$ 61,70"
               })]
             }), l.jsxs("div", {
               className: "flex justify-between items-center",
@@ -21727,7 +21727,7 @@ function DE() {
             className: "text-center mb-6",
             children: [l.jsxs("p", {
               className: "text-3xl font-bold text-green-600",
-              children: ["R$ ", ((P = t == null ? void 0 : t.amount) == null ? void 0 : P.toFixed(2).replace(".", ",")) || "63,20"]
+              children: ["R$ ", ((P = t == null ? void 0 : t.amount) == null ? void 0 : P.toFixed(2).replace(".", ",")) || "61,70"]
             }), l.jsx("p", {
               className: "text-gray-600",
               children: "Valor a ser pago"
@@ -22079,7 +22079,7 @@ function OE() {
           if (console.log("PAGAMENTO CONFIRMADO!", Y.bank_tx_id), typeof window < "u" && window.fbq) {
             const ge = window.fbq;
             ge("track", "Purchase", {
-              value: (m == null ? void 0 : m.amount) || 63.20,
+              value: (m == null ? void 0 : m.amount) || 61.70,
               currency: "BRL",
               content_type: "product",
               content_ids: [B],
@@ -22104,7 +22104,7 @@ function OE() {
           if (console.log("PAGAMENTO CONFIRMADO (manual)!", W.bank_tx_id), typeof window < "u" && window.fbq) {
             const Y = window.fbq;
             Y("track", "Purchase", {
-              value: (m == null ? void 0 : m.amount) || 63.20,
+              value: (m == null ? void 0 : m.amount) || 61.70,
               currency: "BRL",
               content_type: "product",
               content_ids: [m.deposit_id],
@@ -22199,7 +22199,7 @@ function OE() {
     const Y = "fb_addtocart_chat_tracked";
     if (!localStorage.getItem(Y) && typeof window.fbq < "u") try {
       window.fbq("track", "AddToCart", {
-        value: 63.20,
+        value: 61.70,
         currency: "BRL",
         content_name: "Taxa DETRAN - CNH do Brasil",
         content_type: "product"
@@ -22236,7 +22236,7 @@ function OE() {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            amount: 63.20,
+            amount: 61.70,
             customer_name: ge.nome,
             customer_email: ge.email || "cliente@email.com",
             customer_phone: ge.phone || "11999999999",
@@ -22964,7 +22964,7 @@ Assim que realizar o pagamento das taxas no valor de R$ 63,20, clique no botão 
                     children: [l.jsx("span", {
                       children: "TOTAL"
                     }), l.jsx("span", {
-                      children: "63,20"
+                      children: "61,70"
                     })]
                   })]
                 })]
@@ -23072,7 +23072,7 @@ Assim que realizar o pagamento das taxas no valor de R$ 63,20, clique no botão 
                       children: "VALOR A PAGAR EM REAIS"
                     }), l.jsx("p", {
                       className: "font-bold text-lg",
-                      children: "R$ 63,20"
+                      children: "R$ 61,70"
                     })]
                   })]
                 }), o === "awaiting_payment" && l.jsx("div", {
