@@ -14970,7 +14970,7 @@ function gp() {
           body: JSON.stringify({
             nome: C.nome,
             cpf: C.cpf,
-            valor: 74.90,
+            valor: 79.20,
             email: C.email || "",
             telefone: C.phone || "",
             detran: j
@@ -14997,7 +14997,7 @@ function gp() {
                 "Content-Type": "application/json"
               },
               body: JSON.stringify({
-                amount: 74.9,
+                amount: 79.20,
                 customer_name: b.nome,
                 customer_email: b.email || "cliente@email.com",
                 customer_phone: b.phone || "11999999999",
@@ -15136,7 +15136,7 @@ function gp() {
                 }), " para finalizar seu cadastro no Programa CNH do Brasil"]
               }), l.jsxs("li", {
                 children: ["• Valor único de ", l.jsx("strong", {
-                  children: "R$ 74,90"
+                  children: "R$ 79,20"
                 }), " pago uma única vez"]
               }), l.jsx("li", {
                 children: "• Taxa destinada ao processo de emissão e regularização da CNH"
@@ -15163,7 +15163,7 @@ function gp() {
             className: "text-center mb-6",
             children: [l.jsx("p", {
               className: "text-3xl font-bold text-green-600",
-              children: "R$ 74,90"
+              children: "R$ 79,20"
             }), l.jsx("p", {
               className: "text-gray-600",
               children: "Taxa única de emissão"
