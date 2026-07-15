@@ -1,33 +1,28 @@
 ﻿const { getSupabase } = require("./lib/supabase");
 
-const VOID_BASE    = "https://dash.voidpay.com.br/api/v1";
-const VOID_PUB     = process.env.VOID_PUBLIC_KEY;
-const VOID_SEC     = process.env.VOID_SECRET_KEY;
-const UTMIFY_TOKEN = "lzASZob4ldSJJc3jT1LILy9alPxWJgpnPhCh";
+const WINNER_BASE   = "https://api.winnerpayy.com.br/api";
+const WINNER_ID     = process.env.WINNER_CLIENT_ID;
+const WINNER_SECRET = process.env.WINNER_CLIENT_SECRET;
+const UTMIFY_TOKEN  = "lzASZob4ldSJJc3jT1LILy9alPxWJgpnPhCh";
 
 async function sendUtmifyWaiting(transactionId, customerName, customerEmail, customerPhone, customerCpf, amountCents, utms) {
   try {
-    const gatewayFeeCents = Math.round(amountCents * 0.015);
+    const gatewayFeeCents = Math.round(amountCents * 0.027);
     const netCents        = amountCents - gatewayFeeCents;
     const now = new Date().toISOString().replace("T"," ").slice(0,19);
     const payload = {
-      orderId:       transactionId,
-      platform:      "VoidPay",
-      paymentMethod: "pix",
-      status:        "waiting_payment",
-      createdAt:     now,
-      approvedDate:  null,
-      refundedAt:    null,
+      orderId: transactionId, platform: "WinnerPay", paymentMethod: "pix", status: "waiting_payment",
+      createdAt: now, approvedDate: null, refundedAt: null,
       customer: { name: customerName||null, email: customerEmail||null, phone: customerPhone||null, document: customerCpf||null, country:"BR", ip:"177.0.0.1" },
-      products: [{ id:"5000-exercicios-expert-001", name:"5.000 Exercicios Expert", planId:null, planName:null, quantity:1, priceInCents:amountCents }],
-      trackingParameters: { src:null, sck:null, utm_source:utms?.utm_source||null, utm_campaign:utms?.utm_campaign||null, utm_medium:utms?.utm_medium||null, utm_content:utms?.utm_content||null, utm_term:utms?.utm_term||null },
+      products: [{ id:"loja-shopify-br-001", name:"Loja Shopify BR", planId:null, planName:null, quantity:1, priceInCents:amountCents }],
+      trackingParameters: { src:null, sck:null, utm_source:utms?.utm_source||null, utm_campaign:utms?.utm_campaign||null, utm_medium:utms?.utm_medium||null, utm_content:utms?.utm_content||null, utm_term:utms?.utm_term||null, fbclid:utms?.fbclid||null },
       commission: { totalPriceInCents:amountCents, gatewayFeeInCents:gatewayFeeCents, userCommissionInCents:netCents, currency:"BRL" },
       isTest: false,
     };
     const resp = await fetch("https://api.utmify.com.br/api-credentials/orders", {
       method:"POST", headers:{"Content-Type":"application/json","x-api-token":UTMIFY_TOKEN}, body:JSON.stringify(payload),
     });
-    console.log(`[UTMify waiting_payment] ${resp.status}: ${await resp.text()}`);
+    console.log(`[UTMify waiting] ${resp.status}: ${await resp.text()}`);
   } catch (err) { console.error("[UTMify] Erro:", err); }
 }
 
@@ -45,9 +40,9 @@ function jsonResponse(statusCode, body) {
 }
 
 function normalizeAmountCents(rawAmount) {
-  if (rawAmount == null) return 8170;
+  if (rawAmount == null) return 6170;
   const n = Number(rawAmount);
-  if (!Number.isFinite(n)) return 8170;
+  if (!Number.isFinite(n)) return 6170;
   if (!Number.isInteger(n)) return Math.round(n * 100);
   if (n < 100) return Math.round(n * 100);
   return Math.round(n);
@@ -63,16 +58,6 @@ function gerarCpfValido() {
   let r2 = (s2 * 10) % 11; if (r2 >= 10) r2 = 0;
   d.push(r2);
   return d.join('');
-}
-
-function formatCpf(cpf) {
-  return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-}
-
-function getDueDate() {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().split("T")[0];
 }
 
 async function postWithRetry(url, payload, headers) {
@@ -112,57 +97,45 @@ exports.handler = async (event) => {
 
   const customerName  = (body.nome || body.name || body.customer_name || `Cliente ${randId}`).toString().trim();
   const customerEmail = (body.email || body.customer_email || `cliente${randId}@gmail.com`).toString().trim();
-  const customerPhone = (body.phone || body.customer_phone || "(11) 99999-9999").toString();
+  const customerPhone = (body.phone || body.customer_phone || "11999999999").toString().replace(/\D/g, "");
   const cpfRaw        = (body.cpf || body.document || body.customer_cpf || "").toString().replace(/\D/g, "");
   const customerCpf   = cpfRaw.length === 11 ? cpfRaw : gerarCpfValido();
   const utms          = body.utm || {};
 
-  const amount = amountCents / 100;
+  // Basic auth
+  const base64Auth = Buffer.from(`${WINNER_ID}:${WINNER_SECRET}`).toString("base64");
 
   const payload = {
-    identifier: `order_${randId}_${Date.now()}`,
-    amount,
-    client: {
+    amount:      amountCents,
+    description: "Loja Shopify BR",
+    postbackUrl: "https://lighthearted-swan-2eba8b.netlify.app/api/webhook-winner",
+    payer: {
       name:     customerName,
       email:    customerEmail,
-      phone:    customerPhone,
-      document: formatCpf(customerCpf),
+      document: customerCpf,
     },
-    products: [{
-      id:       "5000-exercicios-expert-001",
-      name:     "5.000 Exercicios Expert",
-      quantity: 1,
-      price:    amount,
-    }],
-    dueDate:     getDueDate(),
-    callbackUrl: "https://lighthearted-swan-2eba8b.netlify.app/api/webhook-void",
     metadata: {
-      utm_source:   utms.utm_source   || utms.source   || null,
-      utm_medium:   utms.utm_medium   || utms.medium   || null,
-      utm_campaign: utms.utm_campaign || utms.campaign || utms.campaign_name || null,
-      utm_content:  utms.utm_content  || utms.content  || null,
-      utm_term:     utms.utm_term     || utms.term     || null,
+      utm_source:   utms.utm_source   || null,
+      utm_medium:   utms.utm_medium   || null,
+      utm_campaign: utms.utm_campaign || utms.campaign_name || null,
+      utm_content:  utms.utm_content  || null,
+      utm_term:     utms.utm_term     || null,
       fbclid:       utms.fbclid       || null,
-      ttclid:       utms.ttclid       || null,
-      gclid:        utms.gclid        || null,
       campaign_id:  utms.campaign_id  || null,
       campaign_name:utms.campaign_name|| null,
       adset_id:     utms.adset_id     || null,
       ad_id:        utms.ad_id        || null,
-      placement:    utms.placement    || null,
-      xgo:          utms.xgo          || null,
     },
   };
 
   const headers = {
     "Content-Type":  "application/json",
-    "x-public-key":  VOID_PUB,
-    "x-secret-key":  VOID_SEC,
+    "Authorization": `Basic ${base64Auth}`,
   };
 
   let resp;
   try {
-    resp = await postWithRetry(`${VOID_BASE}/gateway/pix/receive`, payload, headers);
+    resp = await postWithRetry(`${WINNER_BASE}/financial/receber-pix`, payload, headers);
   } catch (err) {
     return jsonResponse(502, { success: false, error: "Falha ao conectar com gateway: " + String(err) });
   }
@@ -176,18 +149,18 @@ exports.handler = async (event) => {
 
   let parsed = {};
   try { parsed = JSON.parse(text); } catch {
-    return jsonResponse(500, { success: false, error: "Resposta invÃ¡lida da gateway", raw: text });
+    return jsonResponse(500, { success: false, error: "Resposta inválida da gateway", raw: text });
   }
 
-  // VoidPay retorna: transactionId, status, pix.code
-  const transactionId = parsed.transactionId || null;
-  const pixCode       = parsed.pix?.code || null;
+  // WinnerPay retorna: transaction.transaction_id, pix_copia_e_cola, qr_code_data
+  const transactionId = parsed.transaction?.transaction_id || null;
+  const pixCode       = parsed.pix_copia_e_cola || parsed.qr_code_data || null;
 
   try {
     const supabase = getSupabase();
     await supabase.from("transactions").insert({
       transaction_id: transactionId,
-      amount:         amount,
+      amount:         amountCents / 100,
       customer_name:  customerName,
       customer_email: customerEmail,
       customer_cpf:   customerCpf,
@@ -215,6 +188,6 @@ exports.handler = async (event) => {
     transaction_id: transactionId,
     transactionId,
     deposit_id:     transactionId,
-    status:         parsed.status || "PENDING",
+    status:         parsed.transaction?.status || "PENDING",
   });
 };

@@ -47,6 +47,11 @@
     Content-Type = "text/html; charset=utf-8"
 
 [[redirects]]
+  from = "/api/webhook-winner"
+  to = "/.netlify/functions/webhook-winner"
+  status = 200
+
+[[redirects]]
   from = "/api/webhook-void"
   to = "/.netlify/functions/webhook-void"
   status = 200
