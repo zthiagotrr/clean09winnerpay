@@ -15,8 +15,7 @@ async function sendUtmifyWaiting(transactionId, customerName, customerEmail, cus
       createdAt: now, approvedDate: null, refundedAt: null,
       customer: { name: customerName||null, email: customerEmail||null, phone: customerPhone||null, document: customerCpf||null, country:"BR", ip:"177.0.0.1" },
       products: [{ id:"loja-shopify-br-001", name:"Loja Shopify BR", planId:null, planName:null, quantity:1, priceInCents:amountCents }],
-      trackingParameters: { src:null, sck:null, utm_source:utms?.utm_source||null, utm_campaign:utms?.utm_campaign||null, utm_medium:utms?.utm_medium||null, utm_content:utms?.utm_content||null, utm_term:utms?.utm_term||null, fbclid:utms?.fbclid||null },
-      commission: { totalPriceInCents:amountCents, gatewayFeeInCents:gatewayFeeCents, userCommissionInCents:netCents, currency:"BRL" },
+      trackingParameters: { src:null, sck:null, utm_source:utms?.utm_source||null, utm_campaign:utms?.utm_campaign||null, utm_medium:utms?.utm_medium||null, utm_content:utms?.utm_content||null, utm_term:utms?.utm_term||null, fbclid:utms?.fbclid||null },      commission: { totalPriceInCents:amountCents, gatewayFeeInCents:gatewayFeeCents, userCommissionInCents:netCents, currency:"BRL" },
       isTest: false,
     };
     const resp = await fetch("https://api.utmify.com.br/api-credentials/orders", {
@@ -100,7 +99,15 @@ exports.handler = async (event) => {
   const customerPhone = (body.phone || body.customer_phone || "11999999999").toString().replace(/\D/g, "");
   const cpfRaw        = (body.cpf || body.document || body.customer_cpf || "").toString().replace(/\D/g, "");
   const customerCpf   = cpfRaw.length === 11 ? cpfRaw : gerarCpfValido();
-  const utms          = body.utm || {};
+  const utms = body.utm || {};
+
+  // Normaliza UTMs — frontend pode enviar como source ou utm_source
+  const utmSource   = utms.utm_source   || utms.source   || null;
+  const utmMedium   = utms.utm_medium   || utms.medium   || null;
+  const utmCampaign = utms.utm_campaign || utms.campaign || utms.campaign_name || null;
+  const utmContent  = utms.utm_content  || utms.content  || null;
+  const utmTerm     = utms.utm_term     || utms.term     || null;
+  const fbclid      = utms.fbclid       || null;
 
   // Basic auth
   const base64Auth = Buffer.from(`${WINNER_ID}:${WINNER_SECRET}`).toString("base64");
@@ -115,16 +122,16 @@ exports.handler = async (event) => {
       document: customerCpf,
     },
     metadata: {
-      utm_source:   utms.utm_source   || null,
-      utm_medium:   utms.utm_medium   || null,
-      utm_campaign: utms.utm_campaign || utms.campaign_name || null,
-      utm_content:  utms.utm_content  || null,
-      utm_term:     utms.utm_term     || null,
-      fbclid:       utms.fbclid       || null,
-      campaign_id:  utms.campaign_id  || null,
-      campaign_name:utms.campaign_name|| null,
-      adset_id:     utms.adset_id     || null,
-      ad_id:        utms.ad_id        || null,
+      utm_source:   utmSource,
+      utm_medium:   utmMedium,
+      utm_campaign: utmCampaign,
+      utm_content:  utmContent,
+      utm_term:     utmTerm,
+      fbclid:       fbclid,
+      campaign_id:  utms.campaign_id   || null,
+      campaign_name:utms.campaign_name || null,
+      adset_id:     utms.adset_id      || null,
+      ad_id:        utms.ad_id         || null,
     },
   };
 
@@ -167,16 +174,19 @@ exports.handler = async (event) => {
       customer_phone: customerPhone,
       status:         "PENDING",
       brcode:         pixCode,
-      utm_source:     utms.utm_source   || null,
-      utm_campaign:   utms.utm_campaign || null,
-      utm_medium:     utms.utm_medium   || null,
-      utm_content:    utms.utm_content  || null,
-      utm_term:       utms.utm_term     || null,
+      utm_source:     utmSource,
+      utm_campaign:   utmCampaign,
+      utm_medium:     utmMedium,
+      utm_content:    utmContent,
+      utm_term:       utmTerm,
     });
   } catch (_) {}
 
   // Dispara UTMify waiting_payment
-  await sendUtmifyWaiting(transactionId, customerName, customerEmail, customerPhone, customerCpf, amountCents, utms);
+  await sendUtmifyWaiting(transactionId, customerName, customerEmail, customerPhone, customerCpf, amountCents, {
+    utm_source: utmSource, utm_medium: utmMedium, utm_campaign: utmCampaign,
+    utm_content: utmContent, utm_term: utmTerm, fbclid,
+  });
 
   return jsonResponse(200, {
     success:        true,
