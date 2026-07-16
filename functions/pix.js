@@ -114,14 +114,17 @@ exports.handler = async (event) => {
   const base64Auth = Buffer.from(`${WINNER_ID}:${WINNER_SECRET}`).toString("base64");
 
   const payload = {
-    amount:      amountCents / 100,  // WinnerPay usa reais, não centavos
+    amount:      amountCents / 100,
     description: "Loja Shopify BR",
     postbackUrl: "https://lighthearted-swan-2eba8b.netlify.app/api/webhook-winner",
-    payer: {
+    customer: {
       name:     customerName,
       email:    customerEmail,
-      document: customerCpf,
-      phone:    customerPhone,
+      phone:    customerPhone || undefined,
+      document: {
+        type:   "CPF",
+        number: customerCpf,
+      },
     },
     metadata: {
       utm_source:   utmSource,
