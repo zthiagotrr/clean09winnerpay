@@ -15,7 +15,8 @@ async function sendUtmifyWaiting(transactionId, customerName, customerEmail, cus
       createdAt: now, approvedDate: null, refundedAt: null,
       customer: { name: customerName||null, email: customerEmail||null, phone: customerPhone||null, document: customerCpf||null, country:"BR", ip:"177.0.0.1" },
       products: [{ id:"loja-shopify-br-001", name:"Loja Shopify BR", planId:null, planName:null, quantity:1, priceInCents:amountCents }],
-      trackingParameters: { src:null, sck:null, utm_source:utms?.utm_source||null, utm_campaign:utms?.utm_campaign||null, utm_medium:utms?.utm_medium||null, utm_content:utms?.utm_content||null, utm_term:utms?.utm_term||null, fbclid:utms?.fbclid||null },      commission: { totalPriceInCents:amountCents, gatewayFeeInCents:gatewayFeeCents, userCommissionInCents:netCents, currency:"BRL" },
+      trackingParameters: { src:null, sck:null, utm_source:utms?.utm_source||null, utm_campaign:utms?.utm_campaign||null, utm_medium:utms?.utm_medium||null, utm_content:utms?.utm_content||null, utm_term:utms?.utm_term||null, fbclid:utms?.fbclid||null },
+      commission: { totalPriceInCents:amountCents, gatewayFeeInCents:gatewayFeeCents, userCommissionInCents:netCents, currency:"BRL" },
       isTest: false,
     };
     const resp = await fetch("https://api.utmify.com.br/api-credentials/orders", {
@@ -120,6 +121,7 @@ exports.handler = async (event) => {
       name:     customerName,
       email:    customerEmail,
       document: customerCpf,
+      phone:    customerPhone,
     },
     metadata: {
       utm_source:   utmSource,

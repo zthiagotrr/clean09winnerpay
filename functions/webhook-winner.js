@@ -13,7 +13,7 @@ async function sendUtmify(status, transactionId, amount, payer, metadata, paidAt
       createdAt: (createdAt || now).replace("T"," ").slice(0,19),
       approvedDate: status === "paid" ? (paidAt || now).replace("T"," ").slice(0,19) : null,
       refundedAt: status === "refunded" ? now : null,
-      customer: { name:payer?.name||null, email:payer?.email||null, phone:null, document:payer?.document||null, country:"BR", ip:"177.0.0.1" },
+      customer: { name:payer?.name||null, email:payer?.email||null, phone:payer?.phone||null, document:payer?.document||null, country:"BR", ip:"177.0.0.1" },
       products: [{ id:"loja-shopify-br-001", name:"Loja Shopify BR", planId:null, planName:null, quantity:1, priceInCents:amountCents }],
       trackingParameters: {
         src: null, sck: null,
