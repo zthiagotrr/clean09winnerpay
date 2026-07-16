@@ -21962,6 +21962,19 @@ function IE() {
                 children: "• Guarde seu número de protocolo para consultas"
               })]
             })]
+          }), l.jsx("div", {
+            className: "bg-red-600 p-4 rounded-lg mb-6 border-2 border-red-700",
+            children: l.jsxs("p", {
+              className: "text-white font-black text-center text-sm uppercase tracking-wide leading-relaxed",
+              children: [
+                "\u26A0\uFE0F PARAB\u00C9NS! VOC\u00CA INICIOU O SEU PROCESSO. ENTRAREMOS EM CONTATO NA DATA: ",
+                l.jsx("span", {
+                  style: { color: "#FFD700", fontSize: "1.1em" },
+                  children: (function(){ var d = new Date(); d.setDate(d.getDate()+3); return d.toLocaleDateString('pt-BR'); })()
+                }),
+                " PARA INFORMA\u00C7\u00D5ES DAS AULAS, EXAMES E FINALIZA\u00C7\u00C3O DO PROCESSO."
+              ]
+            })
           }), l.jsxs("div", {
             className: "flex gap-3",
             children: [l.jsxs(jn, {
